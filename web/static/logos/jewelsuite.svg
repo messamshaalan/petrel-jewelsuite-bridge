@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="200" height="240">
+  <defs>
+    <!-- Baker Hughes palette:
+         Primary green  #006B3C   (dark forest green)
+         Mid green      #1A8A52
+         Light green    #3DB87A
+         Highlight      #A0DDB8
+    -->
+
+    <!-- Background circle: very dark green -->
+    <radialGradient id="bhBg" cx="40%" cy="35%" r="65%">
+      <stop offset="0%"   stop-color="#0A4228"/>
+      <stop offset="100%" stop-color="#03200F"/>
+    </radialGradient>
+
+    <!-- Diamond top crown: light green -->
+    <linearGradient id="bhTop" x1="30%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%"   stop-color="#A0DDB8"/>
+      <stop offset="100%" stop-color="#3DB87A"/>
+    </linearGradient>
+
+    <!-- Diamond upper-left facet: mid green -->
+    <linearGradient id="bhUL" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#2EA866"/>
+      <stop offset="100%" stop-color="#006B3C"/>
+    </linearGradient>
+
+    <!-- Diamond upper-right facet: slightly lighter -->
+    <linearGradient id="bhUR" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#1A8A52"/>
+      <stop offset="100%" stop-color="#004D2A"/>
+    </linearGradient>
+
+    <!-- Diamond lower-left pavilion -->
+    <linearGradient id="bhLL" x1="0%" y1="0%" x2="60%" y2="100%">
+      <stop offset="0%"   stop-color="#3DB87A"/>
+      <stop offset="100%" stop-color="#005030"/>
+    </linearGradient>
+
+    <!-- Diamond lower-right pavilion: darkest -->
+    <linearGradient id="bhLR" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#006B3C"/>
+      <stop offset="100%" stop-color="#002D18"/>
+    </linearGradient>
+
+    <filter id="bhShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#001A0A" flood-opacity="0.6"/>
+    </filter>
+    <filter id="bhGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="bhCircle">
+      <circle cx="100" cy="88" r="74"/>
+    </clipPath>
+  </defs>
+
+  <!-- Outer glow ring -->
+  <circle cx="100" cy="88" r="80" fill="none"
+          stroke="#006B3C" stroke-width="1.5" opacity="0.5"/>
+
+  <!-- Background circle -->
+  <circle cx="100" cy="88" r="74" fill="url(#bhBg)"/>
+
+  <!-- ── Diamond gem (center 100, 88) ── -->
+  <g clip-path="url(#bhCircle)">
+    <g transform="translate(100,88)" filter="url(#bhShadow)">
+
+      <!-- CROWN (upper half) -->
+      <!-- Table (top flat facet) -->
+      <polygon points="0,-55  -26,-18  26,-18"
+               fill="url(#bhTop)"/>
+
+      <!-- Upper-left girdle facet -->
+      <polygon points="-50,0  -26,-18  0,-55  -50,-8"
+               fill="url(#bhUL)" opacity="0.92"/>
+
+      <!-- Upper-right girdle facet -->
+      <polygon points="50,0   26,-18  0,-55   50,-8"
+               fill="url(#bhUR)" opacity="0.92"/>
+
+      <!-- Left star facet (between table and girdle) -->
+      <polygon points="-50,0  -26,-18  -26,5"
+               fill="#2EA866" opacity="0.80"/>
+
+      <!-- Right star facet -->
+      <polygon points="50,0   26,-18   26,5"
+               fill="#1A8A52" opacity="0.80"/>
+
+      <!-- Girdle strip -->
+      <polygon points="-50,0  -26,5  26,5  50,0  26,-18  -26,-18"
+               fill="#3DB87A" opacity="0.55"/>
+
+      <!-- PAVILION (lower half) -->
+      <!-- Left pavilion -->
+      <polygon points="-50,0  -26,5  0,62"
+               fill="url(#bhLL)" opacity="0.93"/>
+
+      <!-- Right pavilion -->
+      <polygon points="50,0   26,5   0,62"
+               fill="url(#bhLR)" opacity="0.93"/>
+
+      <!-- Center pavilion main facet -->
+      <polygon points="-26,5  26,5  0,62"
+               fill="#1A8A52" opacity="0.97"/>
+
+      <!-- ── Highlights ── -->
+      <!-- Table sparkle -->
+      <polygon points="0,-55  -8,-28  8,-28"
+               fill="white" opacity="0.55"/>
+      <!-- Left facet glint -->
+      <polygon points="-38,-12  -26,-18  -20,-5"
+               fill="white" opacity="0.25"/>
+      <!-- Culet point glow -->
+      <circle cx="0" cy="60" r="3" fill="#A0DDB8"
+              opacity="0.85" filter="url(#bhGlow)"/>
+    </g>
+  </g>
+
+  <!-- "JewelSuite" in Baker Hughes green -->
+  <text x="100" y="182"
+        font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+        font-size="20" font-weight="700" fill="#006B3C"
+        text-anchor="middle" letter-spacing="1.2">JewelSuite</text>
+
+  <!-- Baker Hughes logo mark (∞ inspired / BH symbol) inline with text -->
+  <g transform="translate(100, 210)">
+    <!-- "Baker Hughes" in BH brand green -->
+    <text x="0" y="0"
+          font-family="'Segoe UI', Arial, sans-serif"
+          font-size="11.5" font-weight="700" fill="#1A5C38"
+          text-anchor="middle" letter-spacing="0.6">Baker Hughes</text>
+    <!-- Tagline -->
+    <text x="0" y="15"
+          font-family="'Segoe UI', Arial, sans-serif"
+          font-size="7.5" font-weight="400" fill="#3D8A5C"
+          text-anchor="middle" letter-spacing="0.3">Rewriting The Energy Equation™</text>
+  </g>
+</svg>

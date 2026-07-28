@@ -1,0 +1,48 @@
+# Core scientific stack
+numpy>=1.24.0
+scipy>=1.10.0
+pandas>=2.0.0
+
+# Grid geometry & reservoir engineering
+xtgeo>=3.4.0          # Petrel GRDECL/EGRID parsing, grid operations
+resqpy>=4.0.0         # RESQML 2.0 read/write (OSDU compliant)
+resfo>=4.0.0          # Eclipse Fortran binary I/O (pure-Python, Windows-safe)
+opm-common>=2023.10   # Eclipse INIT/UNRST (optional, Linux/macOS only)
+
+# 3D mesh processing
+pyvista>=0.42.0       # Tetrahedral mesh I/O, voxelization
+trimesh>=4.0.0        # Surface mesh / fault conversion
+meshio>=5.3.0         # Multi-format mesh I/O (VTK, Abaqus, Gmsh, etc.)
+h5py>=3.9.0           # HDF5 for RESQML backing store + large voxel grids
+
+# Geometry utilities
+shapely>=2.0.0        # 2D polygon operations (fault traces)
+rtree>=1.0.0          # Spatial indexing for fast neighbour queries
+pyproj>=3.5.0         # CRS / coordinate reference system transforms
+
+# Validation & QC
+pydantic>=2.0.0
+
+# CLI
+rich>=13.0.0          # Coloured progress bars and tables
+typer>=0.9.0
+
+# Web UI
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+jinja2>=3.1.0
+python-multipart>=0.0.9   # FastAPI file upload support
+
+# Logging & config
+loguru>=0.7.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-xdist>=3.3.0       # Parallel test execution
+httpx>=0.27.0              # FastAPI test client
+
+# Notebooks
+jupyterlab>=4.0.0
+matplotlib>=3.7.0
+plotly>=5.17.0

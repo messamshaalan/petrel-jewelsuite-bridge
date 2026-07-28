@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Petrel ↔ JewelSuite Bridge</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="app-header">
+  <div class="header-inner">
+    <!-- Petrel Logo -->
+    <div class="brand-block brand-petrel">
+      <img src="/static/logos/petrel.svg" alt="Petrel" class="brand-logo" id="logo-petrel"/>
+      <div class="brand-text">
+        <span class="brand-name">Petrel</span>
+        <span class="brand-sub">by SLB</span>
+      </div>
+    </div>
+
+    <!-- Centre: title + animated arrows -->
+    <div class="bridge-centre">
+      <div class="bridge-arrows" id="bridgeArrows">
+        <svg viewBox="0 0 160 40" xmlns="http://www.w3.org/2000/svg" class="arrows-svg">
+          <defs>
+            <marker id="arrowR" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#48CAE4"/>
+            </marker>
+            <marker id="arrowL" markerWidth="6" markerHeight="6" refX="1" refY="3" orient="auto">
+              <path d="M6,0 L0,3 L6,6 Z" fill="#3DB87A"/>
+            </marker>
+          </defs>
+          <!-- Right arrow (Petrel → JewelSuite) -->
+          <line x1="10" y1="13" x2="148" y2="13"
+                stroke="#48CAE4" stroke-width="2.5"
+                marker-end="url(#arrowR)" class="arrow-right"/>
+          <!-- Left arrow (JewelSuite → Petrel) -->
+          <line x1="150" y1="27" x2="12" y2="27"
+                stroke="#3DB87A" stroke-width="2.5"
+                marker-end="url(#arrowL)" class="arrow-left"/>
+        </svg>
+      </div>
+      <h1 class="bridge-title">Bi-Directional<br/>Data Bridge</h1>
+      <p class="bridge-sub">3D Grid Format Converter</p>
+    </div>
+
+    <!-- JewelSuite Logo -->
+    <div class="brand-block brand-jewel">
+      <img src="/static/logos/jewelsuite.svg" alt="JewelSuite" class="brand-logo" id="logo-jewel"/>
+      <div class="brand-text">
+        <span class="brand-name">JewelSuite</span>
+        <span class="brand-sub">by Baker Hughes</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===== CAPABILITIES BAR ===== -->
+<div class="caps-bar">
+  <span class="cap-tag">✓ Corner-Point Grids</span>
+  <span class="cap-tag">✓ JewelGrid</span>
+  <span class="cap-tag">✓ Tet Mesh → Voxel</span>
+  <span class="cap-tag">✓ RESQML 2.0</span>
+  <span class="cap-tag">✓ Eclipse GRDECL / EGRID</span>
+  <span class="cap-tag">✓ Fault &amp; Horizon Transfer</span>
+  <span class="cap-tag">✓ Time-Step Properties</span>
+  <span class="cap-tag">✓ CMG GEM / IMEX</span>
+</div>
+
+<!-- ===== MAIN CONTENT ===== -->
+<main class="main-content">
+
+  <!-- === LEFT: CONFIGURATION PANEL === -->
+  <section class="config-panel glass-card">
+    <h2 class="panel-title">Conversion Setup</h2>
+
+    <!-- Direction selector -->
+    <div class="form-group">
+      <label class="form-label">Direction</label>
+      <div class="direction-grid">
+        <button class="dir-btn active" data-dir="petrel_to_jewel" onclick="setDirection(this)">
+          <span class="dir-icon" style="color:#48CAE4">⬜</span>
+          <span>Petrel <span class="arrow-txt">→</span> JewelSuite</span>
+        </button>
+        <button class="dir-btn" data-dir="jewel_to_petrel" onclick="setDirection(this)">
+          <span class="dir-icon" style="color:#3DB87A">◆</span>
+          <span>JewelSuite <span class="arrow-txt">→</span> Petrel</span>
+        </button>
+        <button class="dir-btn" data-dir="tet_to_voxel" onclick="setDirection(this)">
+          <span class="dir-icon" style="color:#9B59B6">△</span>
+          <span>Tet Mesh → Voxel</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Output format -->
+    <div class="form-group">
+      <label class="form-label" for="outFormat">Output Format</label>
+      <select id="outFormat" class="form-select">
+        <option value="resqml">RESQML 2.0 (.epc)</option>
+        <option value="grdecl">GRDECL ASCII (.grdecl)</option>
+        <option value="vtk">VTK Unstructured (.vtk)</option>
+      </select>
+    </div>
+
+    <!-- Resolution (tet only) -->
+    <div class="form-group" id="resGroup" style="display:none">
+      <label class="form-label" for="resolution">Voxel Resolution</label>
+      <div class="slider-row">
+        <input type="range" id="resolution" min="20" max="200" value="50"
+               oninput="document.getElementById('resVal').textContent=this.value"/>
+        <span id="resVal" class="slider-val">50</span>
+        <span class="slider-unit">cells / longest axis</span>
+      </div>
+    </div>
+
+    <!-- Project name -->
+    <div class="form-group">
+      <label class="form-label" for="projName">Project Name (optional)</label>
+      <input type="text" id="projName" class="form-input" placeholder="e.g. Volve_2024"/>
+    </div>
+
+    <!-- Optional INIT / UNRST -->
+    <div class="form-group" id="simGroup">
+      <label class="form-label">Simulation Results (optional)</label>
+      <div class="sim-files">
+        <label class="sim-file-label">
+          <input type="file" id="initFile" accept=".INIT,.init" style="display:none"/>
+          <button class="file-btn sim-btn" onclick="document.getElementById('initFile').click()">
+            📂 Eclipse .INIT
+          </button>
+          <span id="initName" class="sim-file-name">no file</span>
+        </label>
+        <label class="sim-file-label">
+          <input type="file" id="unrstFile" accept=".UNRST,.unrst" style="display:none"/>
+          <button class="file-btn sim-btn" onclick="document.getElementById('unrstFile').click()">
+            📂 Eclipse .UNRST
+          </button>
+          <span id="unrstName" class="sim-file-name">no file</span>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <!-- === CENTRE: DROP ZONE + PROGRESS === -->
+  <section class="drop-section">
+
+    <!-- Drop zone -->
+    <div class="drop-zone glass-card" id="dropZone"
+         ondragover="handleDragOver(event)"
+         ondragleave="handleDragLeave(event)"
+         ondrop="handleDrop(event)">
+      <div class="drop-inner" id="dropInner">
+        <div class="drop-icon" id="dropIcon">
+          <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="40" cy="40" r="36" fill="none" stroke="#48CAE4" stroke-width="2" stroke-dasharray="6,4" opacity="0.5"/>
+            <path d="M40 20 L40 55 M28 40 L40 52 L52 40" stroke="#48CAE4" stroke-width="3"
+                  stroke-linecap="round" fill="none"/>
+            <path d="M25 62 L55 62" stroke="#3DB87A" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="drop-title">Drop your grid file here</p>
+        <p class="drop-sub">or <button class="link-btn" onclick="document.getElementById('fileInput').click()">browse</button></p>
+        <p class="drop-formats">GRDECL · EGRID · EPC (RESQML) · VTK · DAT · JEWEL</p>
+        <input type="file" id="fileInput" style="display:none"
+               accept=".grdecl,.GRDECL,.egrid,.EGRID,.epc,.EPC,.vtk,.VTK,.dat,.DAT,.txt,.jewel,.JEWEL"
+               onchange="handleFileSelect(this)"/>
+      </div>
+
+      <!-- File selected state -->
+      <div class="file-selected" id="fileSelected" style="display:none">
+        <div class="file-icon">📄</div>
+        <div class="file-details">
+          <span class="file-name" id="selectedFileName"></span>
+          <span class="file-size" id="selectedFileSize"></span>
+        </div>
+        <button class="clear-btn" onclick="clearFile()">✕</button>
+      </div>
+    </div>
+
+    <!-- Convert button -->
+    <button class="convert-btn" id="convertBtn" onclick="startConversion()" disabled>
+      <span class="btn-icon">⚡</span> Convert
+    </button>
+
+    <!-- Progress panel -->
+    <div class="progress-panel glass-card" id="progressPanel" style="display:none">
+      <div class="progress-header">
+        <span class="progress-title" id="progressTitle">Converting…</span>
+        <span class="progress-pct" id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <p class="progress-msg" id="progressMsg"></p>
+    </div>
+
+    <!-- Result panel -->
+    <div class="result-panel glass-card" id="resultPanel" style="display:none">
+      <div class="result-header">
+        <span class="result-icon">✓</span>
+        <span class="result-title">Conversion Complete</span>
+      </div>
+      <div id="qcSummary" class="qc-summary"></div>
+      <a class="download-btn" id="downloadBtn" href="#">
+        ⬇ Download Result
+      </a>
+      <button class="reset-btn" onclick="resetUI()">Convert another file</button>
+    </div>
+
+    <!-- Error panel -->
+    <div class="error-panel glass-card" id="errorPanel" style="display:none">
+      <div class="error-header">
+        <span class="error-icon">✗</span>
+        <span class="error-title">Conversion Failed</span>
+      </div>
+      <p class="error-msg" id="errorMsg"></p>
+      <button class="reset-btn" onclick="resetUI()">Try again</button>
+    </div>
+  </section>
+
+  <!-- === RIGHT: INFO PANEL === -->
+  <section class="info-panel glass-card" id="infoPanel">
+    <h2 class="panel-title">File Inspector</h2>
+    <div class="info-placeholder" id="infoPlaceholder">
+      <p>Drop a file to see grid metadata</p>
+    </div>
+    <div id="infoContent" style="display:none">
+      <table class="info-table" id="infoTable"></table>
+      <div id="propsSection" style="margin-top:16px"></div>
+      <div id="fwSection" style="margin-top:12px"></div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== 3D VIEWER ===== -->
+<section class="viewer-section" id="viewerSection" style="display:none">
+  <!-- Top control bar -->
+  <div class="viewer-header">
+    <h3 class="viewer-title">3D Grid Preview</h3>
+
+    <!-- Display mode -->
+    <div class="viewer-ctrl-group">
+      <span class="viewer-ctrl-label">Mode</span>
+      <button class="viewer-btn viewer-mode-btn active"
+              onclick="window.viewerModule?.setDisplayMode('surface', this)">Surface</button>
+      <button class="viewer-btn viewer-mode-btn"
+              onclick="window.viewerModule?.setDisplayMode('cells', this)">Cells</button>
+    </div>
+
+    <!-- Overlays -->
+    <div class="viewer-ctrl-group">
+      <span class="viewer-ctrl-label">Overlay</span>
+      <button class="viewer-btn" onclick="window.viewerModule?.toggleWireframe(this)">Wireframe</button>
+      <button class="viewer-btn active" onclick="window.viewerModule?.toggleFaults(this)">Faults</button>
+      <button class="viewer-btn active" onclick="window.viewerModule?.toggleBox(this)">XYZ Box</button>
+    </div>
+
+    <!-- Camera -->
+    <div class="viewer-ctrl-group">
+      <button class="viewer-btn" onclick="window.viewerModule?.toggleSync(this)">Sync Cameras</button>
+    </div>
+
+    <!-- Color mode -->
+    <div class="viewer-ctrl-group">
+      <span class="viewer-ctrl-label">Color</span>
+      <select class="viewer-select" id="colorModeSelect"
+              onchange="window.viewerModule?.setColorMode(this.value)">
+        <option value="depth">Depth</option>
+        <option value="zone">Zone (K Layer)</option>
+      </select>
+    </div>
+
+    <!-- Depth legend -->
+    <div class="viewer-legend" id="depthLegend">
+      <span class="legend-label">Depth</span>
+      <div class="legend-bar"></div>
+      <span class="legend-tick" id="legend-min">–</span>
+      <span class="legend-tick" id="legend-max">–</span>
+    </div>
+  </div>
+
+  <!-- Slice player (visible in Cells mode) -->
+  <div class="viewer-sliders" id="viewerSliders" style="display:none">
+    <div class="slice-row">
+      <span class="slice-label">Column (I)</span>
+      <button class="play-btn" id="playI" onclick="window.viewerModule?.playAxis('i', this)">▶</button>
+      <input  class="slice-slider" type="range" id="sliceI" min="-1" max="7" value="-1" step="1"
+              oninput="window.viewerModule?.setSlice('i', +this.value)"/>
+      <span class="slice-val" id="sliceIVal">All</span>
+    </div>
+    <div class="slice-row">
+      <span class="slice-label">Row (J)</span>
+      <button class="play-btn" id="playJ" onclick="window.viewerModule?.playAxis('j', this)">▶</button>
+      <input  class="slice-slider" type="range" id="sliceJ" min="-1" max="7" value="-1" step="1"
+              oninput="window.viewerModule?.setSlice('j', +this.value)"/>
+      <span class="slice-val" id="sliceJVal">All</span>
+    </div>
+  </div>
+
+  <!-- Canvases -->
+  <div class="viewer-panels">
+    <div class="viewer-panel">
+      <div class="viewer-panel-label viewer-panel-label--orig">Imported Grid</div>
+      <canvas id="canvas-original"></canvas>
+      <div class="viewer-empty" id="viewer-original-empty">Drop a file to preview</div>
+    </div>
+    <div class="viewer-panel">
+      <div class="viewer-panel-label viewer-panel-label--conv">Converted Grid</div>
+      <canvas id="canvas-converted"></canvas>
+      <div class="viewer-empty" id="viewer-converted-empty">Convert a file to preview</div>
+    </div>
+  </div>
+
+  <!-- Diagnostic tables -->
+  <div class="diag-panels">
+    <div class="diag-panel" id="diag-original" style="display:none">
+      <h4 class="diag-title">Input Grid — Coordinate Diagnostics</h4>
+      <table class="diag-table" id="diag-table-original"></table>
+    </div>
+    <div class="diag-panel" id="diag-converted" style="display:none">
+      <h4 class="diag-title">Output GRDECL — Coordinate Diagnostics</h4>
+      <table class="diag-table" id="diag-table-converted"></table>
+    </div>
+  </div>
+</section>
+
+<!-- ===== GAP SOLUTIONS LEGEND ===== -->
+<section class="gaps-section">
+  <h3 class="gaps-title">Solutions to Current Interoperability Gaps</h3>
+  <div class="gaps-grid">
+    <div class="gap-card">
+      <div class="gap-number">1</div>
+      <div class="gap-body">
+        <h4>JewelGrid → Petrel Export</h4>
+        <p>Corner-point approximation with pillar-fitting and deviation QC metrics.
+           Preserves fault geometries during conversion.</p>
+        <span class="gap-status solved">Solved</span>
+      </div>
+    </div>
+    <div class="gap-card">
+      <div class="gap-number">2</div>
+      <div class="gap-body">
+        <h4>Pillar Grid Bi-Directional</h4>
+        <p>Intelligent pillar mapper converts Petrel corner-point grids to JewelGrid
+           with full fault geometry and property fidelity.</p>
+        <span class="gap-status solved">Solved</span>
+      </div>
+    </div>
+    <div class="gap-card">
+      <div class="gap-number">3</div>
+      <div class="gap-body">
+        <h4>3D Tet Mesh → Petrel</h4>
+        <p>Tetrahedral meshes voxelized to Cartesian stair-step grids with
+           adaptive resolution control and point-set export.</p>
+        <span class="gap-status solved">Solved</span>
+      </div>
+    </div>
+    <div class="gap-card">
+      <div class="gap-number">4</div>
+      <div class="gap-body">
+        <h4>Visage Geomechanical Results</h4>
+        <p>Stress/strain tensors parsed from Visage ASCII output and mapped
+           to standard reservoir grids with unit conversion.</p>
+        <span class="gap-status solved">Solved</span>
+      </div>
+    </div>
+    <div class="gap-card">
+      <div class="gap-number">5</div>
+      <div class="gap-body">
+        <h4>Structural Framework Sync</h4>
+        <p>Fault triangulation, horizon resampling, and zone boundary transfer
+           between platforms via RESQML neutral format.</p>
+        <span class="gap-status solved">Solved</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer class="app-footer">
+  <span>Petrel ↔ JewelSuite Bridge v0.1.0</span>
+  <span class="footer-sep">|</span>
+  <span>G&amp;G Workflow Automation</span>
+  <span class="footer-sep">|</span>
+  <span>Formats: Eclipse · RESQML 2.0 · RESCUE 3.0 · CMG · VTK</span>
+</footer>
+
+<script src="/static/js/app.js"></script>
+<script type="module" src="/static/js/viewer.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+
+# Large/binary grid sample & test data — not meant for source control
+*.jewel
+*.egrid
+*.grid
+*.epc
+tests/data/**/*.grdecl
+tests/data/**/*.dat
+
+# Editor/OS
+.vscode/
+.DS_Store
