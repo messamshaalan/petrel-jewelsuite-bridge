@@ -46,7 +46,7 @@ _SKIP_KEYWORDS = {
 # than a single flat array.  These must be skipped record-by-record until an
 # empty record (a lone "/") closes the block, otherwise the trailing records
 # are left as loose tokens that get misread as the next flat-array keyword.
-_BLOCK_KEYWORDS = {"EQUALS", "ADD", "MULTIPLY", "COPY"}
+_BLOCK_KEYWORDS = {"EQUALS", "ADD", "MULTIPLY", "COPY", "FAULTS"}
 
 # Keywords with no data at all (no trailing "/").
 _BARE_KEYWORDS = {"ENDBOX"}
@@ -126,6 +126,140 @@ def _skip_block(tokens: list[str], pos: int) -> int:
             # Empty record (the "/" was the very first token) — block closed.
             break
     return pos
+
+
+def _point_in_triangle_2d(p, a, b, c) -> bool:
+    """Barycentric-sign point-in-triangle test in the XY plane."""
+    d1 = (p[0] - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (p[1] - b[1])
+    d2 = (p[0] - c[0]) * (b[1] - c[1]) - (b[0] - c[0]) * (p[1] - c[1])
+    d3 = (p[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (p[1] - a[1])
+    has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
+    has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
+    return not (has_neg and has_pos)
+
+
+def _segments_intersect_2d(p1, p2, p3, p4) -> bool:
+    """True if segment p1-p2 crosses segment p3-p4 in the XY plane."""
+    def _cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    d1 = _cross(p3, p4, p1)
+    d2 = _cross(p3, p4, p2)
+    d3 = _cross(p1, p2, p3)
+    d4 = _cross(p1, p2, p4)
+    return ((d1 > 0) != (d2 > 0)) and ((d3 > 0) != (d4 > 0))
+
+
+def _segment_intersects_triangle_2d(p1, p2, a, b, c) -> bool:
+    """True if segment p1-p2 crosses triangle (a,b,c), or either endpoint
+    lies inside it, when all points are projected onto the XY plane."""
+    if _point_in_triangle_2d(p1, a, b, c) or _point_in_triangle_2d(p2, a, b, c):
+        return True
+    for e1, e2 in ((a, b), (b, c), (c, a)):
+        if _segments_intersect_2d(p1, p2, e1, e2):
+            return True
+    return False
+
+
+def _fault_keyword_entries(
+    framework, coord: np.ndarray, zcorn: np.ndarray, dims: GridDimensions
+) -> list[tuple[str, int, int, int, int, int, int, str]]:
+    """
+    Approximate which grid cell faces sit on each fault surface, by
+    intersecting the fault's triangulated geometry (XY projection) against
+    the internal I- and J-direction pillar boundaries of the reconstructed
+    grid, then locating the affected K-layers from the local Z-range of the
+    intersecting triangles.
+
+    Returns rows already converted to Eclipse's 1-based, J-flipped output
+    convention (matching how COORD/ZCORN/ACTNUM are written), ready to write
+    directly into a FAULTS keyword.
+
+    This does NOT alter grid geometry — it only labels existing cell faces
+    for fault naming / MULTFLT transmissibility-multiplier assignment.  Any
+    real geometric throw already present in ZCORN is preserved as-is; this
+    reader's own JewelGrid reconstruction currently smooths pillar Z-values,
+    so exported grids typically have no throw to begin with.
+    """
+    ni, nj, nk = dims.ni, dims.nj, dims.nk
+    if not framework or not framework.faults:
+        return []
+
+    # Representative XY per pillar (midpoint of top/bottom — exact for the
+    # vertical pillars this bridge currently produces, approximate for tilt).
+    pillar_xy = 0.5 * (coord[:, :, 0:2] + coord[:, :, 3:5])
+
+    # Column-average top/bottom Z per (i, j, k) layer for K-range testing.
+    layer_z = 0.25 * (
+        zcorn[0::2, 0::2, :] + zcorn[1::2, 0::2, :]
+        + zcorn[0::2, 1::2, :] + zcorn[1::2, 1::2, :]
+    )  # shape (ni, nj, 2*nk)
+
+    entries: list[tuple[str, int, int, int, int, int, int, str]] = []
+
+    for fault in framework.faults:
+        verts_xy = fault.vertices[:, :2]
+        verts_z = fault.vertices[:, 2]
+        tris = fault.triangles
+
+        # I-direction boundaries: pillar line i=b separates cell i=b-1 (I+) from cell i=b.
+        for b in range(1, ni):
+            for j in range(nj):
+                p1, p2 = pillar_xy[b, j], pillar_xy[b, j + 1]
+                z_hits: list[float] = []
+                for t in tris:
+                    a, bb, c = verts_xy[t[0]], verts_xy[t[1]], verts_xy[t[2]]
+                    if _segment_intersects_triangle_2d(p1, p2, a, bb, c):
+                        z_hits.extend(verts_z[t].tolist())
+                if not z_hits:
+                    continue
+                z_lo, z_hi = min(z_hits), max(z_hits)
+                k_matches = [
+                    k for k in range(nk)
+                    if not (layer_z[b - 1, j, 2 * k + 1] < z_lo or layer_z[b - 1, j, 2 * k] > z_hi)
+                ]
+                if not k_matches:
+                    continue
+                k_lo, k_hi = min(k_matches), max(k_matches)
+                entries.append((
+                    fault.name,
+                    b, b,                      # I1, I2 (1-based; cell b's +I face)
+                    nj - j, nj - j,             # J1, J2 (flipped to match output J order)
+                    k_lo + 1, k_hi + 1,         # K1, K2
+                    "I+",
+                ))
+
+        # J-direction boundaries: pillar line j=b separates cell j=b-1 from cell j=b.
+        for b in range(1, nj):
+            for i in range(ni):
+                p1, p2 = pillar_xy[i, b], pillar_xy[i + 1, b]
+                z_hits = []
+                for t in tris:
+                    a, bb, c = verts_xy[t[0]], verts_xy[t[1]], verts_xy[t[2]]
+                    if _segment_intersects_triangle_2d(p1, p2, a, bb, c):
+                        z_hits.extend(verts_z[t].tolist())
+                if not z_hits:
+                    continue
+                z_lo, z_hi = min(z_hits), max(z_hits)
+                k_matches = [
+                    k for k in range(nk)
+                    if not (layer_z[i, b, 2 * k + 1] < z_lo or layer_z[i, b, 2 * k] > z_hi)
+                ]
+                if not k_matches:
+                    continue
+                k_lo, k_hi = min(k_matches), max(k_matches)
+                # Output J is flipped: internal cell j=b has the SMALLER
+                # output J index and sits on the +J side of internal cell
+                # j=b-1's neighbour — so label it on the b-side cell as 'J+'.
+                entries.append((
+                    fault.name,
+                    i + 1, i + 1,               # I1, I2
+                    nj - b, nj - b,             # J1, J2 (cell j=b, flipped)
+                    k_lo + 1, k_hi + 1,         # K1, K2
+                    "J+",
+                ))
+
+    return entries
 
 
 def read_grdecl(path: str | Path) -> BridgeModel:
@@ -250,8 +384,13 @@ def read_grdecl(path: str | Path) -> BridgeModel:
     )
 
 
-def write_grdecl(model: BridgeModel, path: str | Path) -> None:
-    """Write a CornerPointGrid BridgeModel to GRDECL ASCII format."""
+def write_grdecl(model: BridgeModel, path: str | Path) -> list[str]:
+    """
+    Write a CornerPointGrid BridgeModel to GRDECL ASCII format.
+
+    Returns a list of warning strings (empty if none) — currently used to
+    flag the approximate nature of any FAULTS keyword written.
+    """
     path = Path(path)
     if model.corner_point is None:
         raise ValueError("BridgeModel has no CornerPointGrid to write")
@@ -315,3 +454,31 @@ def write_grdecl(model: BridgeModel, path: str | Path) -> None:
                 continue
             pv = prop.values.reshape(d.ni, d.nj, d.nk)
             _write_section(pv.transpose(2, 1, 0)[:, ::-1, :], prop.name, fh)
+
+        warnings: list[str] = []
+        if model.framework and model.framework.faults:
+            fault_rows = _fault_keyword_entries(model.framework, g.coord, g.zcorn, d)
+            if fault_rows:
+                fh.write(
+                    "\n-- FAULTS: cell faces labelled from fault-surface geometry "
+                    "projected onto the reconstructed grid (approximate - see "
+                    "conversion QC warnings). Does not itself alter ZCORN geometry.\n"
+                )
+                fh.write("FAULTS\n")
+                for name, i1, i2, j1, j2, k1, k2, face in fault_rows:
+                    fh.write(f"  '{name}'  {i1} {i2}  {j1} {j2}  {k1} {k2}  '{face}' /\n")
+                fh.write("/\n")
+                n_faults = len({row[0] for row in fault_rows})
+                warnings.append(
+                    f"FAULTS keyword written for {n_faults} fault(s) ({len(fault_rows)} face "
+                    "entries) - geometrically approximate (projected from fault-surface "
+                    "triangles onto the reconstructed grid), for fault naming/MULTFLT use; "
+                    "does not add geometric throw to ZCORN."
+                )
+            else:
+                warnings.append(
+                    f"{len(model.framework.faults)} fault surface(s) present in source model "
+                    "but none intersected the reconstructed grid - no FAULTS keyword written."
+                )
+
+    return warnings

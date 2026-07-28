@@ -46,7 +46,9 @@ def _resqpy():
         import resqpy.grid as rq_grid
         import resqpy.property as rq_prop
         import resqpy.surface as rq_surf
-        return rq_model, rq_grid, rq_prop, rq_surf
+        import resqpy.crs as rq_crs
+        from resqpy.rq_import import grid_from_cp
+        return rq_model, rq_grid, rq_prop, rq_surf, rq_crs, grid_from_cp
     except ImportError as exc:
         raise ImportError("resqpy required: pip install resqpy") from exc
 
@@ -60,7 +62,7 @@ def read_resqml(path: str | Path) -> BridgeModel:
     Read the first IjkGrid from a RESQML .epc file and all attached properties.
     """
     path = Path(path)
-    rq_model, rq_grid, rq_prop, rq_surf = _resqpy()
+    rq_model, rq_grid, rq_prop, rq_surf, rq_crs, grid_from_cp = _resqpy()
 
     model = rq_model.Model(str(path))
 
@@ -197,7 +199,7 @@ def write_resqml(model: BridgeModel, path: str | Path) -> None:
     Supports CornerPointGrid with optional properties and fault surfaces.
     """
     path = Path(path)
-    rq_model, rq_grid, rq_prop, rq_surf = _resqpy()
+    rq_model, rq_grid, rq_prop, rq_surf, rq_crs, grid_from_cp = _resqpy()
 
     rq_m = rq_model.new_model(str(path))
 
@@ -207,21 +209,30 @@ def write_resqml(model: BridgeModel, path: str | Path) -> None:
     g = model.corner_point
     d = g.dims
 
+    crs = rq_crs.Crs(rq_m, z_inc_down=True, title="local CRS")
+    crs.create_xml()
+
     # Build resqpy Grid
     cp_array = _coord_zcorn_to_cp(g.coord, g.zcorn, d)
+    active_mask = g.actnum.reshape(d.ni, d.nj, d.nk).transpose(2, 1, 0).astype(bool)
 
-    grid = rq_grid.Grid.from_cp_grid_arrays(
+    grid = grid_from_cp(
         rq_m,
-        extent_kji=(d.nk, d.nj, d.ni),
-        cp_array=cp_array,
-        title=model.project_name or "BridgeGrid",
+        cp_array,
+        crs.uuid,
+        active_mask=active_mask,
     )
+    grid.title = model.project_name or "BridgeGrid"
     grid.write_hdf5_from_caches()
     grid.create_xml()
 
     # Properties
     pc = rq_prop.PropertyCollection(support=grid)
     for prop in model.properties:
+        if prop.values.size != d.ncells:
+            # Non-cell ordering (e.g. per pillar-array/stack) that doesn't map
+            # onto this grid's flat cell array — skip rather than crash.
+            continue
         arr = prop.values.reshape(d.nk, d.nj, d.ni)
         pc.add_cached_array_to_imported_list(
             arr,

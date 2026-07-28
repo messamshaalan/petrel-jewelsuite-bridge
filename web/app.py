@@ -300,7 +300,7 @@ def _do_convert(model, direction, output_format, resolution, project_name, job) 
         else:
             from converters.jewel_to_petrel.jewel_to_corner_point import jewel_to_corner_point
             cp_model, _ = jewel_to_corner_point(jewel_model)
-            write_grdecl(cp_model, out_path)
+            qc_dict.setdefault("warnings", []).extend(write_grdecl(cp_model, out_path))
 
     elif direction == "jewel_to_petrel":
         job.message = "Converting JewelSuite → corner-point…"
@@ -330,7 +330,7 @@ def _do_convert(model, direction, output_format, resolution, project_name, job) 
 
         job.message = "Writing GRDECL…"
         job.progress_pct = 85
-        write_grdecl(cp_model, out_path)
+        qc_dict.setdefault("warnings", []).extend(write_grdecl(cp_model, out_path))
 
     elif direction == "tet_to_voxel":
         from converters.jewel_to_petrel.tet_to_voxel import tet_to_voxel
@@ -347,7 +347,7 @@ def _do_convert(model, direction, output_format, resolution, project_name, job) 
         job.message = "Writing GRDECL…"
         job.progress_pct = 85
         out_path = out_path.with_suffix(".grdecl")
-        write_grdecl(vox_model, out_path)
+        qc_dict.setdefault("warnings", []).extend(write_grdecl(vox_model, out_path))
 
     else:
         raise ValueError(f"Unknown conversion direction: {direction}")
